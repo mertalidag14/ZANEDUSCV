@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.datasets import load_diabetes, load_iris
 
-from zaneduscv import AutoML, load_model, save_model
-from zaneduscv.models import available_models, get_model
+from zaneduscv import AutoML, load_model, save_model, train_test_split
+from zaneduscv.datasets import make_classification, make_regression
 from zaneduscv.utils import detect_task
 
-FAST = ["logreg", "knn", "random_forest"]
+FAST = ["logreg", "knn", "decision_tree", "zboost"]
 
 
 def test_detect_task():
@@ -17,50 +16,55 @@ def test_detect_task():
 
 
 def test_classification_with_string_labels(tmp_path):
-    X, y = load_iris(return_X_y=True, as_frame=True)
-    y = y.map({0: "setosa", 1: "versicolor", 2: "virginica"})
-    automl = AutoML(models=FAST, cv=3, verbose=False).fit(X, y)
+    X, y = make_classification(300, n_classes=3, noise=0.0, random_state=0)
+    y = y.map({0: "elma", 1: "armut", 2: "kiraz"})
+    Xtr, Xte, ytr, yte = train_test_split(X, y, random_state=0, stratify=True)
+    automl = AutoML(models=FAST, cv=3, verbose=False).fit(Xtr, ytr)
     assert automl.task_ == "classification"
-    assert automl.best_score_ > 0.9
-    preds = automl.predict(X.head())
-    assert set(preds) <= {"setosa", "versicolor", "virginica"}
-    assert automl.predict_proba(X.head()).shape == (5, 3)
+    assert automl.best_score_ > 0.85
+    preds = automl.predict(Xte)
+    assert set(preds) <= {"elma", "armut", "kiraz"}
+    assert automl.score(Xte, yte) > 0.8
+    assert automl.predict_proba(Xte.head()).shape == (5, 3)
+    assert list(automl.leaderboard()["model"])[0] == automl.best_model_name_
+
+    path = save_model(automl, tmp_path / "model.pkl")
+    assert (load_model(path).predict(Xte) == preds).all()
+
+
+def test_regression_and_lower_is_better_metric():
+    X, y = make_regression(300, random_state=0)
+    automl = AutoML(models=["logreg", "zboost"], cv=3, verbose=False).fit(X, y)
+    assert automl.task_ == "regression" and automl.metric_ == "r2"
+    assert automl.best_score_ > 0.5
+
+    automl = AutoML(models=["logreg", "zboost"], metric="rmse", cv=3, verbose=False).fit(X, y)
     lb = automl.leaderboard()
-    assert list(lb["model"])[0] == automl.best_model_name_
-
-    path = save_model(automl, tmp_path / "model.joblib")
-    loaded = load_model(path)
-    assert (loaded.predict(X.head()) == preds).all()
+    assert lb["rmse_mean"].is_monotonic_increasing
+    assert automl.best_model_name_ == lb["model"][0]
 
 
-def test_regression():
-    X, y = load_diabetes(return_X_y=True, as_frame=True)
-    automl = AutoML(models=["logreg", "random_forest"], cv=3, verbose=False).fit(X, y)
-    assert automl.task_ == "regression"
-    assert automl.metric_ == "r2"
-    assert automl.best_score_ > 0.3
-
-
-def test_numpy_input_and_categorical():
+def test_categorical_and_missing_values():
     rng = np.random.default_rng(0)
     df = pd.DataFrame({
-        "a": rng.normal(size=120),
-        "renk": rng.choice(["kirmizi", "mavi"], size=120),
+        "a": rng.normal(size=150),
+        "renk": rng.choice(["kirmizi", "mavi", None], size=150),
     })
     y = (df["a"] > 0).astype(int)
-    automl = AutoML(models=["logreg"], cv=3, verbose=False).fit(df, y)
-    assert automl.best_score_ > 0.8
-    AutoML(models=["knn"], cv=3, verbose=False).fit(df[["a"]].to_numpy(), y)
+    df.loc[::10, "a"] = np.nan
+    automl = AutoML(models=["logreg", "zboost"], cv=3, verbose=False).fit(df, y)
+    assert automl.best_score_ > 0.75
+    AutoML(models=["knn"], cv=3, verbose=False).fit(df[["a"]].fillna(0).to_numpy(), y)
+
+
+def test_feature_importances():
+    X, y = make_classification(200, random_state=0)
+    automl = AutoML(models=["zboost"], cv=3, verbose=False).fit(X, y)
+    imp = automl.feature_importances()
+    assert imp.index[0] in {"f0", "f1", "f2", "f3"}
 
 
 def test_unknown_model_name():
-    X, y = load_iris(return_X_y=True)
+    X, y = make_classification(50, random_state=0)
     with pytest.raises(ValueError):
         AutoML(models=["yok_boyle"], verbose=False).fit(X, y)
-
-
-def test_all_boosters_registered():
-    names = available_models()
-    for n in ["xgboost", "lightgbm", "catboost"]:
-        assert n in names
-    assert get_model("catboost", "regression") is not None

@@ -9,16 +9,15 @@ Kullanim:
 """
 
 import time
-import warnings
 
 import numpy as np
-from sklearn.base import BaseEstimator, clone
-from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder
 
+from .base import BaseEstimator, clone
+from .metrics import get_metric
+from .model_selection import KFold, StratifiedKFold, cross_val_score, score_estimator
 from .models import get_models
-from .preprocessing import AutoPreprocessor
+from .pipeline import Pipeline
+from .preprocessing import AutoPreprocessor, LabelEncoder
 from .reporting import make_leaderboard
 from .utils import detect_task, to_dataframe
 
@@ -32,10 +31,10 @@ class AutoML(BaseEstimator):
     Parametreler
     ------------
     task : "auto", "classification" ya da "regression"
-    models : denenecek model isimleri listesi, None ise kurulu olanlarin hepsi
-    metric : sklearn scoring ismi (ornek "accuracy", "f1_macro", "r2", "neg_mean_absolute_error")
+    models : denenecek model isimleri, None ise hepsi
+    metric : "accuracy", "f1_macro", "roc_auc", "log_loss", "r2", "rmse", "mae" ...
     cv : kac katli capraz dogrulama
-    preprocessing : AutoPreprocessor'a gidecek ayarlar (dict)
+    preprocessing : AutoPreprocessor ayarlari (dict)
     random_state : tekrarlanabilirlik icin seed
     verbose : True ise her modelin skorunu ekrana yazar
     """
@@ -55,8 +54,8 @@ class AutoML(BaseEstimator):
             print(msg)
 
     def _make_pipeline(self, model):
-        prep = AutoPreprocessor(**(self.preprocessing or {}))
-        return Pipeline([("preprocessor", prep), ("model", model)])
+        return Pipeline([("preprocessor", AutoPreprocessor(**(self.preprocessing or {}))),
+                         ("model", model)])
 
     def fit(self, X, y):
         X = to_dataframe(X)
@@ -66,6 +65,7 @@ class AutoML(BaseEstimator):
 
         self.task_ = detect_task(y) if self.task == "auto" else self.task
         self.metric_ = self.metric or DEFAULT_METRICS[self.task_]
+        _, self.greater_is_better_, _ = get_metric(self.metric_)
 
         if self.task_ == "classification":
             self.label_encoder_ = LabelEncoder().fit(y)
@@ -85,12 +85,10 @@ class AutoML(BaseEstimator):
         for name, model in candidates.items():
             start = time.perf_counter()
             try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
+                with np.errstate(all="ignore"):
                     scores = cross_val_score(self._make_pipeline(model), X, y_fit,
-                                             cv=splitter, scoring=self.metric_)
-                res = {"mean": float(np.mean(scores)), "std": float(np.std(scores)),
-                       "status": "ok"}
+                                             cv=splitter, metric=self.metric_)
+                res = {"mean": float(np.mean(scores)), "std": float(np.std(scores)), "status": "ok"}
             except Exception as exc:  # bir model patlarsa digerleri devam etsin
                 res = {"mean": np.nan, "std": np.nan, "status": f"hata: {exc}"}
             res["fit_time"] = round(time.perf_counter() - start, 2)
@@ -101,11 +99,12 @@ class AutoML(BaseEstimator):
         if not ok:
             raise RuntimeError("Hicbir model egitilemedi, results_ icindeki hatalara bak")
 
-        self.best_model_name_ = max(ok, key=lambda n: ok[n]["mean"])
+        sign = 1 if self.greater_is_better_ else -1
+        self.best_model_name_ = max(ok, key=lambda n: sign * ok[n]["mean"])
         self.best_score_ = ok[self.best_model_name_]["mean"]
         self.best_pipeline_ = self._make_pipeline(clone(candidates[self.best_model_name_]))
         self.best_pipeline_.fit(X, y_fit)
-        self.feature_names_in_ = X.columns.tolist()
+        self.feature_names_in_ = list(X.columns)
         self._log(f"[ZANEDUSCV] en iyi model: {self.best_model_name_} ({self.best_score_:.4f})")
         return self
 
@@ -128,15 +127,24 @@ class AutoML(BaseEstimator):
 
     def score(self, X, y):
         """Secilen metrikle skor dondurur."""
-        from sklearn.metrics import get_scorer
         self._check_fitted()
         y = np.asarray(y).ravel()
         if self.label_encoder_ is not None:
             y = self.label_encoder_.transform(y)
-        return get_scorer(self.metric_)(self.best_pipeline_, to_dataframe(X), y)
+        return score_estimator(self.best_pipeline_, to_dataframe(X), y, self.metric_)
 
     def leaderboard(self):
         """Tum modellerin siralamasini DataFrame olarak dondurur."""
         if not hasattr(self, "results_"):
             raise RuntimeError("Once fit() cagirilmali")
-        return make_leaderboard(self.results_, self.metric_)
+        return make_leaderboard(self.results_, self.metric_, self.greater_is_better_)
+
+    def feature_importances(self):
+        """En iyi model agac tabanliysa ozellik onemlerini dondurur."""
+        self._check_fitted()
+        model = self.best_pipeline_.final_estimator_
+        if not hasattr(model, "feature_importances_"):
+            raise AttributeError(f"{self.best_model_name_} ozellik onemi vermiyor")
+        import pandas as pd
+        names = self.best_pipeline_.fitted_steps_[0][1].get_feature_names_out()
+        return pd.Series(model.feature_importances_, index=names).sort_values(ascending=False)

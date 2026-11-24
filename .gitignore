@@ -225,7 +225,6 @@ __marimo__/
 # ZANEDUSCV
 *.pyc
 .venv/
-catboost_info/
 /models/
-*.joblib
+*.pkl
 .ipynb_checkpoints/

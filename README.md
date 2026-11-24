@@ -1,111 +1,129 @@
 # ZANEDUSCV 🤖
 
-ZANEDUSCV, scikit-learn tarzında çalışan kendi AutoML kütüphanem. Veriyi verince ön işlemeyi kendisi yapıyor, model havuzundaki her modeli çapraz doğrulama ile deniyor ve en iyisini seçiyor.
+ZANEDUSCV, sıfırdan yazdığım kendi AutoML kütüphanem. scikit-learn, XGBoost, LightGBM ya da CatBoost kullanmıyor; bütün modeller, ön işleme adımları, metrikler ve çapraz doğrulama sadece **numpy** ile yazılı (tablo işleri için pandas var).
 
-Amaç şu: her yeni veri setinde aynı ön işleme kodunu, aynı model döngüsünü tekrar tekrar yazmamak. `fit` diyorsun, gerisini kütüphane hallediyor.
+Veriyi verince ön işlemeyi kendisi yapıyor, model havuzundaki her modeli çapraz doğrulama ile deniyor ve en iyisini seçiyor. Kullanımı scikit-learn'e benziyor: `fit`, `predict`, `predict_proba`, `score`.
 
 ## 🚀 Hızlı Başlangıç
 
 ```python
-from zaneduscv import AutoML
+from zaneduscv import AutoML, train_test_split
+from zaneduscv.datasets import make_classification
 
-automl = AutoML()
+X, y = make_classification(n_samples=800, n_features=10, n_classes=3, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=True)
+
+automl = AutoML(cv=5)
 automl.fit(X_train, y_train)
 
 automl.leaderboard()        # tüm modellerin sıralaması
 automl.predict(X_test)      # en iyi modelle tahmin
 ```
 
-Breast cancer verisinde çıktı şöyle görünüyor:
+Çıktı şöyle görünüyor:
 
 ```
-[ZANEDUSCV] gorev: classification | metrik: accuracy | 8 model deneniyor
-  logreg         0.9758 (+/- 0.0082)  0.11s
-  knn            0.9670 (+/- 0.0155)  0.17s
-  svm            0.9714 (+/- 0.0112)  0.13s
-  random_forest  0.9626 (+/- 0.0179)  2.89s
-  extra_trees    0.9736 (+/- 0.0149)  2.33s
-  xgboost        0.9692 (+/- 0.0162)  0.57s
-  lightgbm       0.9670 (+/- 0.0139)  0.52s
-  catboost       0.9736 (+/- 0.0164)  2.96s
-[ZANEDUSCV] en iyi model: logreg (0.9758)
-Test skoru: 0.9825
+[ZANEDUSCV] gorev: classification | metrik: accuracy | 7 model deneniyor
+  logreg         0.7317 (+/- 0.0347)  0.15s
+  knn            0.6441 (+/- 0.0337)  0.09s
+  svm            0.6710 (+/- 0.0239)  0.4s
+  decision_tree  0.6724 (+/- 0.0144)  0.25s
+  random_forest  0.7115 (+/- 0.0270)  9.18s
+  extra_trees    0.7192 (+/- 0.0436)  14.88s
+  zboost         0.7177 (+/- 0.0298)  1.97s
+[ZANEDUSCV] en iyi model: logreg (0.7317)
+Test skoru: 0.7233
 ```
+
+Breast cancer verisinde aynı modelleri denediğimde sonuçlar scikit-learn'ün sonuçlarına çok yakın çıkıyor (SVM %97.7, LogReg %97.4, ZBoost %97.0; sklearn RandomForest %96.3).
 
 ## 📦 Kurulum
 
 ```bash
-git clone <repo-linki>
+git clone https://github.com/mertalidag14/ZANEDUSCV.git
 cd ZANEDUSCV
 python -m venv .venv
 .venv\Scripts\activate          # Linux/Mac: source .venv/bin/activate
-pip install -e ".[all]"
+pip install -e ".[dev]"
 ```
 
-XGBoost, LightGBM ve CatBoost kurulu değilse kütüphane yine çalışıyor, sadece o modelleri atlıyor.
+Tek bağımlılık numpy ve pandas.
 
-## ⚙️ Ne Yapıyor?
+## 🧠 Model Havuzu
 
-**Görev tespiti:** Hedef değişkene bakıp sınıflandırma mı regresyon mu olduğuna kendisi karar veriyor. İstersen `task="regression"` diye elle de verebiliyorsun.
+Hepsini kendim yazdım, her biri hem sınıflandırma hem regresyon yapıyor:
 
-**Ön işleme (`zaneduscv.preprocessing`):**
-- Eksik veri: mean, median, most_frequent, KNN
-- Aykırı değer: IQR ya da z-skoru ile kırpma
-- Encoding: one-hot ya da ordinal
-- Scaling: standard, minmax, robust
-
-Sayısal ve kategorik kolonları kendisi buluyor, her birine uygun adımları uyguluyor. Yazı olarak gelen etiketleri (`"evet"`, `"hayir"` gibi) de sorunsuz alıyor.
-
-**Model havuzu (`zaneduscv.models`):**
-
-| Model | Sınıflandırma | Regresyon |
+| İsim | Model | Nasıl çalışıyor? |
 |---|---|---|
-| `logreg` | LogisticRegression | Ridge |
-| `knn` | KNeighborsClassifier | KNeighborsRegressor |
-| `svm` | SVC | SVR |
-| `random_forest` | RandomForestClassifier | RandomForestRegressor |
-| `extra_trees` | ExtraTreesClassifier | ExtraTreesRegressor |
-| `xgboost` | XGBClassifier | XGBRegressor |
-| `lightgbm` | LGBMClassifier | LGBMRegressor |
-| `catboost` | CatBoostClassifier | CatBoostRegressor |
+| `logreg` | Lojistik Regresyon / Ridge | Softmax + L2 ceza, Adam ile gradyan inişi. Regresyonda kapalı form çözüm |
+| `knn` | K-En Yakın Komşu | Matris işlemleriyle toplu mesafe hesabı |
+| `svm` | Destek Vektör Makinesi | RBF çekirdeği Random Fourier Features ile, squared hinge kaybı |
+| `decision_tree` | Karar Ağacı (CART) | Gini / MSE, kümülatif toplamlarla hızlı bölme arama |
+| `random_forest` | Random Forest | Bootstrap + her bölmede rastgele özellik alt kümesi |
+| `extra_trees` | Extra Trees | Eşik değerleri de rastgele, daha hızlı |
+| `zboost` | ZBoost | XGBoost mantığı: gradyan + hessian, `G²/(H+λ)` kazancı, erken durdurma |
 
-**Kaydetme:** `save_model` ve `load_model` ile joblib üzerinden kaydedip geri yükleyebiliyorsun.
+ZBoost'ta `learning_rate`, `max_depth`, `reg_lambda`, `gamma`, `subsample`, `colsample` ve `early_stopping_rounds` ayarlanabiliyor.
+
+## ⚙️ Ön İşleme
+
+`AutoPreprocessor` sayısal ve kategorik kolonları kendisi buluyor:
+
+- **Eksik veri:** mean, median, most_frequent, constant, KNN
+- **Aykırı değer:** IQR ya da z-skoru ile kırpma
+- **Encoding:** one-hot ya da ordinal
+- **Scaling:** standard, minmax, robust
+
+Yazı olarak gelen etiketleri (`"evet"`, `"hayir"` gibi) de alıyor, tahminleri yine yazı olarak döndürüyor.
+
+## 📏 Metrikler
+
+`accuracy`, `f1_macro`, `precision_macro`, `recall_macro`, `roc_auc`, `log_loss`, `r2`, `mse`, `rmse`, `mae`. Küçük olanın iyi olduğu metriklerde (rmse gibi) sıralamayı kendisi ters çeviriyor.
 
 ## 🛠️ Ayarlar
 
 ```python
 automl = AutoML(
     task="auto",                         # "classification" / "regression"
-    models=["xgboost", "lightgbm"],      # sadece bunları dene
-    metric="f1_macro",                   # sklearn'deki herhangi bir scoring
+    models=["zboost", "random_forest"],  # sadece bunları dene
+    metric="f1_macro",
     cv=5,
     preprocessing={"scaling": "robust", "outliers": "zscore", "numeric_impute": "knn"},
 )
+automl.fit(X, y)
+automl.feature_importances()             # ağaç tabanlı modellerde özellik önemleri
 ```
+
+Model kaydetme: `save_model(automl, "model.pkl")` ve `load_model("model.pkl")`.
 
 ## 📁 Klasör Yapısı
 
 ```
 zaneduscv/
 ├── core.py                 # AutoML sınıfı
+├── base.py                 # ortak taban sınıflar (get_params, clone ...)
+├── metrics.py              # metrikler
+├── model_selection.py      # KFold, StratifiedKFold, train_test_split, cross_val_score
+├── pipeline.py             # Pipeline
+├── datasets.py             # deneme için sentetik veri
 ├── preprocessing/          # eksik veri, aykırı değer, encoding, scaling
+├── models/                 # linear, neighbors, svm, tree, forest, boosting
 ├── feature_engineering/    # v0.2
-├── models/                 # model havuzu
-├── optimization/           # v0.3 (Grid, Random, Optuna)
-├── ensemble/               # v0.4 (Voting, Bagging, Stacking, Blending)
+├── optimization/           # v0.3
+├── ensemble/               # v0.4
 ├── reporting/              # leaderboard, ileride HTML/PDF rapor
-└── deployment/             # joblib, ileride FastAPI + Docker
+└── deployment/             # pickle ile kaydetme, ileride FastAPI + Docker
 tests/                      # pytest testleri
 examples/                   # örnek kullanım
 ```
 
 ## 🗺️ Yol Haritası
 
-- [x] **v0.1** Temel çekirdek, ön işleme, 8 modellik havuz, leaderboard, kaydetme
+- [x] **v0.1** Sıfırdan çekirdek: ön işleme, 7 model, metrikler, CV, leaderboard, kaydetme
 - [ ] **v0.2** Feature engineering
-- [ ] **v0.3** Hiperparametre optimizasyonu (GridSearchCV, RandomizedSearchCV, Optuna)
+- [ ] **v0.3** Hiperparametre optimizasyonu (Grid Search, Random Search, Bayesian/TPE)
 - [ ] **v0.4** Ensemble (Voting, Bagging, Stacking, Blending)
-- [ ] **v0.5** Tam AutoML: SHAP açıklamaları, HTML/PDF rapor
+- [ ] **v0.5** Tam AutoML: SHAP tarzı açıklamalar, HTML/PDF rapor, histogram tabanlı hızlı boosting
 - [ ] **v0.6** FastAPI ve Docker ile dağıtım
 - [ ] **v1.0** GPU ve derin öğrenme desteği
 

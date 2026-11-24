@@ -1,7 +1,8 @@
 """Aykiri deger tespiti ve kirpma."""
 
 import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin
+
+from ..base import BaseEstimator, TransformerMixin
 
 
 class OutlierClipper(BaseEstimator, TransformerMixin):
@@ -31,13 +32,9 @@ class OutlierClipper(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        X = np.asarray(X, dtype=float)
-        return np.clip(X, self.lower_, self.upper_)
+        return np.clip(np.asarray(X, dtype=float), self.lower_, self.upper_)
 
     def outlier_mask(self, X):
         """Hangi hucrelerin aykiri oldugunu True/False olarak dondurur."""
         X = np.asarray(X, dtype=float)
         return (X < self.lower_) | (X > self.upper_)
-
-    def get_feature_names_out(self, input_features=None):
-        return np.asarray(input_features, dtype=object)
