@@ -3,6 +3,8 @@
 > 📌 Bu klasör projenin **yan parçası**. Asıl proje bir üst klasördeki **ZANEDUSCV algoritması**.
 > Burada, ZANEDUSCV'yi yazmadan önce yaptığım küçük AutoML kütüphanesi duruyor. Karşılaştırma ve öğrenme amaçlı saklıyorum.
 
+👤 **Geliştiren:** Mert Ali Dağ ([@mertalidag14](https://github.com/mertalidag14))
+
 ZANEDUS, sıfırdan yazdığım sklearn tarzında bir AutoML kütüphanesi. scikit-learn, XGBoost, LightGBM ya da CatBoost kullanmıyor; bütün modeller, ön işleme adımları, metrikler ve çapraz doğrulama sadece **numpy** ile yazılı. Veriyi verince ön işlemeyi kendisi yapıyor, model havuzundaki her modeli çapraz doğrulama ile deniyor ve en iyisini seçiyor.
 
 ## 🚀 Hızlı Başlangıç

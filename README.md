@@ -3,6 +3,8 @@
 > ⚠️ **ZANEDUSCV bir kütüphane değil, bir makine öğrenmesi algoritması.**
 > İçinde hazır modeller toplayan bir araç değil; CatBoost, XGBoost ya da LightGBM gibi **tek başına çalışan kendi algoritmam**. Sıfırdan, sadece **numpy** ile yazılı (tablo işleri için pandas kullanıyor).
 
+👤 **Geliştiren:** Mert Ali Dağ ([@mertalidag14](https://github.com/mertalidag14)). ZANEDUSCV bir ekip işi değil, tek başıma geliştirdiğim kişisel projem.
+
 ## 📁 Repoda Neler Var?
 
 | Klasör | Ne? |
@@ -12,7 +14,7 @@
 
 ## 📱 Nerede Kullanılıyor? TeknoTahmin
 
-ZANEDUSCV'yi gerçek bir projede de kullanıyorum: **TeknoTahmin**, telefonların özelliklerine bakıp fiyat aralığını tahmin eden okul projem.
+ZANEDUSCV'yi gerçek bir projede de kullanıyorum: **TeknoTahmin**, telefonların özelliklerine bakıp fiyat aralığını tahmin eden okul projesi. TeknoTahmin bir ekip projesi; içinde kullanılan ZANEDUSCV algoritmasını ise sadece ben geliştirdim.
 
 - 🔗 Repo: [mertalidag14/Mobile-Price-Range](https://github.com/mertalidag14/Mobile-Price-Range)
 - 🌐 Canlı site: [teknotahmin-0iji.onrender.com](https://teknotahmin-0iji.onrender.com)
