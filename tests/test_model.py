@@ -101,3 +101,17 @@ def test_hatali_girdi():
     m = ZANEDUSCVClassifier(**HIZLI).fit(X, y)
     with pytest.raises(ValueError):
         m.predict(X.drop(columns="f0"))
+
+
+def test_sklearn_uyumlulugu():
+    sklearn = pytest.importorskip("sklearn")  # noqa: F841
+    from sklearn.model_selection import GridSearchCV
+    from sklearn.model_selection import cross_val_score as sk_cv
+
+    X, y = make_classification(n_samples=300, random_state=8)
+    skorlar = sk_cv(ZANEDUSCVClassifier(**HIZLI), X, y, cv=3)
+    assert skorlar.mean() > 0.75
+    gs = GridSearchCV(ZANEDUSCVClassifier(**HIZLI), {"max_depth": [3, 5]}, cv=3).fit(X, y)
+    assert gs.best_params_["max_depth"] in (3, 5)
+    Xr, yr = make_regression(n_samples=300, random_state=8)
+    assert sk_cv(ZANEDUSCVRegressor(**HIZLI), Xr, yr, cv=3).mean() > 0.5

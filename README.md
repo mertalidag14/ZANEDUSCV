@@ -10,6 +10,15 @@
 | ⭐ [`zaneduscv/`](zaneduscv) | **Asıl proje: ZANEDUSCV algoritması.** Bu README onu anlatıyor. |
 | 🧰 [`zanedus_kutuphanesi/`](zanedus_kutuphanesi) | Yan parça: daha önce yazdığım küçük AutoML kütüphanesi (lojistik regresyon, KNN, SVM, karar ağacı, random forest ...). Kendi README'si içinde. |
 
+## 📱 Nerede Kullanılıyor? TeknoTahmin
+
+ZANEDUSCV'yi gerçek bir projede de kullanıyorum: **TeknoTahmin**, telefonların özelliklerine bakıp fiyat aralığını tahmin eden okul projem.
+
+- 🔗 Repo: [mertalidag14/Mobile-Price-Range](https://github.com/mertalidag14/Mobile-Price-Range)
+- 🌐 Canlı site: [teknotahmin-0iji.onrender.com](https://teknotahmin-0iji.onrender.com)
+
+TeknoTahmin'de ZANEDUSCV, XGBoost, LightGBM, CatBoost ve Random Forest ile yan yana yarışıyor. Gerçek telefon verisinde (970 telefon) çapraz doğrulama skoru %70.0; Random Forest ve CatBoost %71.1 ile biraz önde. Aradaki farkı kapatmak için kendi kendini ayarlayan bir mod üzerinde çalışıyorum.
+
 ## 🌳 ZANEDUSCV Nasıl Çalışıyor?
 
 ZANEDUSCV bir **gradient boosting** algoritması: ağaçları art arda ekliyor ve her yeni ağaç öncekilerin hatasını düzeltmeye çalışıyor. Buraya kadarı bildiğimiz boosting. Farkı, ağaçların nasıl kurulduğunda.
@@ -35,7 +44,7 @@ Bunların üstünde ikinci dereceden (Newton) adımlar, histogram tabanlı bölm
 |---|---|---|---|---|
 | Meme kanseri | **%97.4** | %96.5 | %96.5 | %96.7 |
 | Şarap | **%97.7** | **%97.7** | %96.1 | %96.6 |
-| Telefon fiyat aralığı | %93.6 | **%93.7** | %91.1 | %90.5 |
+| Telefon fiyat aralığı (Kaggle) | %93.6 | **%93.7** | %91.1 | %90.5 |
 | Çapraz sınır (sentetik) | **%90.3** | %82.2 | %80.1 | %79.7 |
 | Diyabet (R²) | **0.464** | 0.430 | 0.328 | 0.401 |
 

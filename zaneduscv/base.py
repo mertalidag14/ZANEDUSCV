@@ -18,7 +18,7 @@ class BaseEstimator:
         sig = inspect.signature(cls.__init__)
         return [p for p in sig.parameters if p != "self"]
 
-    def get_params(self):
+    def get_params(self, deep=True):
         return {name: getattr(self, name) for name in self._param_names()}
 
     def set_params(self, **params):
@@ -33,8 +33,31 @@ class BaseEstimator:
         return f"{type(self).__name__}({args})"
 
 
+def _sklearn_tags(estimator_type):
+    """scikit-learn 1.6+ araclari (GridSearchCV, cross_val_score ...) icin etiketler.
+
+    ZANEDUSCV sklearn'e ihtiyac duymuyor; sklearn yuklu degilse bu hic kullanilmiyor.
+    """
+    try:
+        from sklearn.utils import (ClassifierTags, InputTags, RegressorTags, Tags,
+                                   TargetTags)
+    except ImportError as exc:
+        raise AttributeError("__sklearn_tags__") from exc
+    return Tags(
+        estimator_type=estimator_type,
+        target_tags=TargetTags(required=True),
+        classifier_tags=ClassifierTags() if estimator_type == "classifier" else None,
+        regressor_tags=RegressorTags() if estimator_type == "regressor" else None,
+        input_tags=InputTags(allow_nan=True, categorical=True, string=True),
+    )
+
+
 class ClassifierMixin:
     task = "classification"
+    _estimator_type = "classifier"
+
+    def __sklearn_tags__(self):
+        return _sklearn_tags("classifier")
 
     def score(self, X, y):
         from .metrics import accuracy
@@ -43,6 +66,10 @@ class ClassifierMixin:
 
 class RegressorMixin:
     task = "regression"
+    _estimator_type = "regressor"
+
+    def __sklearn_tags__(self):
+        return _sklearn_tags("regressor")
 
     def score(self, X, y):
         from .metrics import r2
