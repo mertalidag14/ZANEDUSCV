@@ -1,15 +1,26 @@
-"""ZANEDUSCV hizli baslangic ornegi. Disaridan hicbir ML kutuphanesi gerekmiyor."""
+"""ZANEDUSCV ile 1 dakikada siniflandirma ve regresyon."""
 
-from zaneduscv import AutoML, save_model, train_test_split
-from zaneduscv.datasets import make_classification
+from zaneduscv import ZANEDUSCVClassifier, ZANEDUSCVRegressor, train_test_split
+from zaneduscv.datasets import make_diagonal, make_regression
 
-X, y = make_classification(n_samples=800, n_features=10, n_classes=3, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=True)
+# --- siniflandirma (capraz sinirli zor veri)
+X, y = make_diagonal(n_samples=1500, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0, stratify=True)
 
-automl = AutoML(cv=5)
-automl.fit(X_train, y_train)
+model = ZANEDUSCVClassifier(random_state=0)
+model.fit(X_train, y_train)
+print("Dogruluk:", round(model.score(X_test, y_test), 4))
+print("Kac agac kullanildi:", model.best_iteration_)
+print("Kolon onemleri:\n", model.get_feature_importance().round(3))
 
-print(automl.leaderboard())
-print("Test skoru:", round(automl.score(X_test, y_test), 4))
+# --- regresyon
+X, y = make_regression(n_samples=800, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+reg = ZANEDUSCVRegressor(random_state=0).fit(X_train, y_train)
+print("R2:", round(reg.score(X_test, y_test), 4))
 
-save_model(automl, "models/zaneduscv_model.pkl")
+# --- kaydet / yukle
+X, y = make_diagonal(n_samples=300, random_state=1)
+model.save("zaneduscv_model.pkl")
+yuklenen = ZANEDUSCVClassifier.load("zaneduscv_model.pkl")
+print("Yuklenen model ayni tahmini yapiyor mu?", bool((yuklenen.predict(X) == model.predict(X)).all()))

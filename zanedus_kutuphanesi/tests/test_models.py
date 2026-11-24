@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
 
-from zaneduscv.datasets import make_classification, make_regression
-from zaneduscv.metrics import accuracy, f1_macro, r2, roc_auc
-from zaneduscv.model_selection import StratifiedKFold, train_test_split
-from zaneduscv.models import MODEL_NAMES, get_model
-from zaneduscv.preprocessing import StandardScaler
+from zanedus.datasets import make_classification, make_regression
+from zanedus.metrics import accuracy, f1_macro, r2, roc_auc
+from zanedus.model_selection import StratifiedKFold, train_test_split
+from zanedus.models import MODEL_NAMES, get_model
+from zanedus.preprocessing import StandardScaler
 
 
 def _split(task):

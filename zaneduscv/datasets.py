@@ -32,3 +32,19 @@ def make_regression(n_samples=500, n_features=8, noise=0.5, nonlinear=True,
     if as_frame:
         return pd.DataFrame(X, columns=[f"f{i}" for i in range(n_features)]), pd.Series(y, name="hedef")
     return X, y
+
+
+def make_diagonal(n_samples=1500, noise=0.05, random_state=None, as_frame=True):
+    """Sinirlari capraz (eksenlere egik) olan zor bir siniflandirma verisi.
+
+    Normal karar agaclari bu siniri merdiven gibi parca parca ogrenmek zorunda kaliyor,
+    ZANEDUSCV'nin egik bolmeleri ise tek adimda yakalayabiliyor.
+    """
+    rng = np.random.default_rng(random_state)
+    X = rng.normal(size=(n_samples, 6))
+    y = ((X[:, 0] + X[:, 1] > 0) ^ (X[:, 2] - 0.7 * X[:, 3] > 0.3)).astype(int)
+    flip = rng.random(n_samples) < noise
+    y[flip] = 1 - y[flip]
+    if as_frame:
+        return pd.DataFrame(X, columns=[f"x{i}" for i in range(6)]), pd.Series(y, name="hedef")
+    return X, y

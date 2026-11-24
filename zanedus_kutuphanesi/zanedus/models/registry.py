@@ -1,4 +1,4 @@
-"""Model havuzu. Buradaki her model ZANEDUSCV icinde sifirdan yazildi."""
+"""Model havuzu. Buradaki her model ZANEDUS icinde sifirdan yazildi."""
 
 from .boosting import ZBoostClassifier, ZBoostRegressor
 from .forest import (ExtraTreesClassifier, ExtraTreesRegressor,

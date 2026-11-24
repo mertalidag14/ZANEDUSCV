@@ -1,7 +1,7 @@
-"""ZANEDUSCV'nin kalbi: AutoML sinifi.
+"""ZANEDUS'un kalbi: AutoML sinifi.
 
 Kullanim:
-    from zaneduscv import AutoML
+    from zanedus import AutoML
     automl = AutoML()
     automl.fit(X_train, y_train)
     automl.leaderboard()
@@ -78,7 +78,7 @@ class AutoML(BaseEstimator):
             splitter = KFold(self.cv, shuffle=True, random_state=self.random_state)
 
         candidates = get_models(self.models, self.task_, self.random_state)
-        self._log(f"[ZANEDUSCV] gorev: {self.task_} | metrik: {self.metric_} | "
+        self._log(f"[ZANEDUS] gorev: {self.task_} | metrik: {self.metric_} | "
                   f"{len(candidates)} model deneniyor")
 
         self.results_ = {}
@@ -105,7 +105,7 @@ class AutoML(BaseEstimator):
         self.best_pipeline_ = self._make_pipeline(clone(candidates[self.best_model_name_]))
         self.best_pipeline_.fit(X, y_fit)
         self.feature_names_in_ = list(X.columns)
-        self._log(f"[ZANEDUSCV] en iyi model: {self.best_model_name_} ({self.best_score_:.4f})")
+        self._log(f"[ZANEDUS] en iyi model: {self.best_model_name_} ({self.best_score_:.4f})")
         return self
 
     def _check_fitted(self):

@@ -1,134 +1,161 @@
-# ZANEDUSCV 🤖
+# ZANEDUSCV 🌳⚡
 
-ZANEDUSCV, sıfırdan yazdığım kendi AutoML kütüphanem. scikit-learn, XGBoost, LightGBM ya da CatBoost kullanmıyor; bütün modeller, ön işleme adımları, metrikler ve çapraz doğrulama sadece **numpy** ile yazılı (tablo işleri için pandas var).
+> ⚠️ **ZANEDUSCV bir kütüphane değil, bir makine öğrenmesi algoritması.**
+> İçinde hazır modeller toplayan bir araç değil; CatBoost, XGBoost ya da LightGBM gibi **tek başına çalışan kendi algoritmam**. Sıfırdan, sadece **numpy** ile yazılı (tablo işleri için pandas kullanıyor).
 
-Veriyi verince ön işlemeyi kendisi yapıyor, model havuzundaki her modeli çapraz doğrulama ile deniyor ve en iyisini seçiyor. Kullanımı scikit-learn'e benziyor: `fit`, `predict`, `predict_proba`, `score`.
+## 📁 Repoda Neler Var?
+
+| Klasör | Ne? |
+|---|---|
+| ⭐ [`zaneduscv/`](zaneduscv) | **Asıl proje: ZANEDUSCV algoritması.** Bu README onu anlatıyor. |
+| 🧰 [`zanedus_kutuphanesi/`](zanedus_kutuphanesi) | Yan parça: daha önce yazdığım küçük AutoML kütüphanesi (lojistik regresyon, KNN, SVM, karar ağacı, random forest ...). Kendi README'si içinde. |
+
+## 🌳 ZANEDUSCV Nasıl Çalışıyor?
+
+ZANEDUSCV bir **gradient boosting** algoritması: ağaçları art arda ekliyor ve her yeni ağaç öncekilerin hatasını düzeltmeye çalışıyor. Buraya kadarı bildiğimiz boosting. Farkı, ağaçların nasıl kurulduğunda.
+
+## 💡 Diğerlerinden Farkı Ne?
+
+Klasik ağaçlar (XGBoost, LightGBM, CatBoost) her adımda **tek bir kolona** bakıp "x < 5 mi?" diye soruyor ve yapraklarına **sabit bir sayı** koyuyor. ZANEDUSCV'de dört şey farklı:
+
+| # | Fikir | Ne işe yarıyor |
+|---|---|---|
+| 1 | **Eğik bölmeler** | Ağaç gerekirse iki kolonu birlikte kullanıyor: `w1·x1 + w2·x2 ≤ eşik`. Ağırlıklar o düğümdeki gradyandan, ağırlıklı en küçük karelerle hesaplanıyor. Böylece çapraz bir sınırı merdiven gibi onlarca bölmeyle değil, tek bölmeyle yakalıyor. |
+| 2 | **Lineer yapraklar** | Her yaprakta sabit bir değer yerine küçük bir ridge regresyonu var: `b + w·x`. Kullandığı kolonlar o yaprağa giden yoldaki kolonlar. Yaprağın içindeki eğimi de öğreniyor. |
+| 3 | **Güven katsayısı** | Yaprağın çıktısı `n / (n + κ)` ile çarpılıyor. Az örnekli yapraklar modeli daha az etkiliyor, böylece ezberleme azalıyor. |
+| 4 | **Doğal kategorik ve eksik değer desteği** | Yazılı kategorileri ve `NaN` değerleri olduğu gibi veriyorsun. Eksik değerler için hangi yöne gideceğini ağaç kendisi öğreniyor; kategoriler gradyan oranına göre sıralanıp en iyi gruplama bulunuyor. |
+
+Bunların üstünde ikinci dereceden (Newton) adımlar, histogram tabanlı bölme arama, histogram çıkarma hilesi, satır/kolon örnekleme ve erken durdurma var.
+
+## 📊 Sonuçlar
+
+5 katlı çapraz doğrulama ile, her modelin kendi varsayılan ayarlarıyla (doğruluk; diyabette R²):
+
+| Veri seti | **ZANEDUSCV** | CatBoost | XGBoost | LightGBM |
+|---|---|---|---|---|
+| Meme kanseri | **%97.4** | %96.5 | %96.5 | %96.7 |
+| Şarap | **%97.7** | **%97.7** | %96.1 | %96.6 |
+| Telefon fiyat aralığı | %93.6 | **%93.7** | %91.1 | %90.5 |
+| Çapraz sınır (sentetik) | **%90.3** | %82.2 | %80.1 | %79.7 |
+| Diyabet (R²) | **0.464** | 0.430 | 0.328 | 0.401 |
+
+Dürüst olmak gerekirse:
+- 🏆 5 veri setinin 4'ünde en iyi ya da berabere, telefon verisinde CatBoost çok az önde.
+- 🐢 Saf Python/numpy olduğu için diğerlerinden **daha yavaş** (onlar C++ ile yazılı).
+- Küçük veri setlerinde farklar birkaç örneğe denk geliyor, o yüzden "her zaman en iyi" demiyorum.
+
+Hangi fikrin ne kattığını da tek tek kapatarak ölçtüm (ablation):
+
+| Veri seti | Tam model | Eğik bölme yok | Lineer yaprak yok | Hepsi kapalı (klasik boosting) |
+|---|---|---|---|---|
+| Çapraz sınır | %90.3 | %80.5 | %90.6 | %79.9 |
+| Telefon fiyatı | %93.6 | %91.6 | %93.7 | %91.0 |
+| Diyabet (R²) | 0.464 | 0.441 | 0.463 | 0.428 |
+
+En büyük farkı eğik bölmeler yaratıyor 🎯
+
+Karşılaştırmayı kendin çalıştırmak için:
+
+```bash
+pip install scikit-learn xgboost lightgbm catboost
+python benchmarks/karsilastirma.py
+python benchmarks/karsilastirma.py telefon.csv price_range    # kendi CSV dosyanla
+```
 
 ## 🚀 Hızlı Başlangıç
 
 ```python
-from zaneduscv import AutoML, train_test_split
-from zaneduscv.datasets import make_classification
+from zaneduscv import ZANEDUSCVClassifier, train_test_split
+from zaneduscv.datasets import make_diagonal
 
-X, y = make_classification(n_samples=800, n_features=10, n_classes=3, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=True)
+X, y = make_diagonal(n_samples=1500, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, stratify=True)
 
-automl = AutoML(cv=5)
-automl.fit(X_train, y_train)
+model = ZANEDUSCVClassifier(random_state=0)
+model.fit(X_train, y_train)
 
-automl.leaderboard()        # tüm modellerin sıralaması
-automl.predict(X_test)      # en iyi modelle tahmin
+model.predict(X_test)            # sınıf tahmini
+model.predict_proba(X_test)      # olasılıklar
+model.score(X_test, y_test)      # doğruluk
+model.get_feature_importance()   # kolon önemleri
 ```
 
-Çıktı şöyle görünüyor:
+Regresyon için `ZANEDUSCVRegressor` var, kullanımı aynı.
 
-```
-[ZANEDUSCV] gorev: classification | metrik: accuracy | 7 model deneniyor
-  logreg         0.7317 (+/- 0.0347)  0.15s
-  knn            0.6441 (+/- 0.0337)  0.09s
-  svm            0.6710 (+/- 0.0239)  0.4s
-  decision_tree  0.6724 (+/- 0.0144)  0.25s
-  random_forest  0.7115 (+/- 0.0270)  9.18s
-  extra_trees    0.7192 (+/- 0.0436)  14.88s
-  zboost         0.7177 (+/- 0.0298)  1.97s
-[ZANEDUSCV] en iyi model: logreg (0.7317)
-Test skoru: 0.7233
+Kategorik kolonlar ve eksik değerler için ekstra bir şey yapmana gerek yok:
+
+```python
+import pandas as pd
+
+df = pd.DataFrame({"ram": [4, 8, None, 6], "marka": ["A", "B", "A", None]})
+model.fit(df, ["ucuz", "pahali", "ucuz", "orta"])
 ```
 
-Breast cancer verisinde aynı modelleri denediğimde sonuçlar scikit-learn'ün sonuçlarına çok yakın çıkıyor (SVM %97.7, LogReg %97.4, ZBoost %97.0; sklearn RandomForest %96.3).
+Kaydetme ve yükleme:
+
+```python
+model.save("model.pkl")
+model = ZANEDUSCVClassifier.load("model.pkl")
+```
+
+## ⚙️ Önemli Parametreler
+
+| Parametre | Varsayılan | Açıklama |
+|---|---|---|
+| `n_estimators` | 500 | En fazla kaç tur ağaç eklenecek |
+| `learning_rate` | 0.05 | Her ağacın katkısı |
+| `max_depth` | 5 | Ağaç derinliği |
+| `oblique` | True | Eğik bölmeleri aç/kapat |
+| `oblique_top` | 3 | Eğik bölme için denenecek en iyi kolon sayısı |
+| `linear_leaves` | True | Lineer yaprakları aç/kapat |
+| `linear_lambda` | 1.0 | Lineer yaprakların ridge cezası |
+| `confidence_kappa` | 10.0 | Güven katsayısındaki κ (0 = kapalı) |
+| `reg_lambda` | 1.0 | L2 düzenlileştirme |
+| `subsample`, `colsample` | 0.8, 0.8 | Satır ve kolon örnekleme oranı |
+| `early_stopping_rounds` | 50 | Doğrulama kaybı bu kadar tur düzelmezse duruyor |
+| `validation_fraction` | 0.1 | `eval_set` verilmezse erken durdurma için ayrılan oran |
+| `max_bins` | 64 | Sayısal kolonların histogram kutusu sayısı |
+
+`fit(X, y, cat_features=None, eval_set=None)`: `cat_features` ile sayı gibi görünen ama aslında kategorik olan kolonları belirtebiliyorsun.
 
 ## 📦 Kurulum
 
 ```bash
 git clone https://github.com/mertalidag14/ZANEDUSCV.git
 cd ZANEDUSCV
-python -m venv .venv
-.venv\Scripts\activate          # Linux/Mac: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 Tek bağımlılık numpy ve pandas.
 
-## 🧠 Model Havuzu
-
-Hepsini kendim yazdım, her biri hem sınıflandırma hem regresyon yapıyor:
-
-| İsim | Model | Nasıl çalışıyor? |
-|---|---|---|
-| `logreg` | Lojistik Regresyon / Ridge | Softmax + L2 ceza, Adam ile gradyan inişi. Regresyonda kapalı form çözüm |
-| `knn` | K-En Yakın Komşu | Matris işlemleriyle toplu mesafe hesabı |
-| `svm` | Destek Vektör Makinesi | RBF çekirdeği Random Fourier Features ile, squared hinge kaybı |
-| `decision_tree` | Karar Ağacı (CART) | Gini / MSE, kümülatif toplamlarla hızlı bölme arama |
-| `random_forest` | Random Forest | Bootstrap + her bölmede rastgele özellik alt kümesi |
-| `extra_trees` | Extra Trees | Eşik değerleri de rastgele, daha hızlı |
-| `zboost` | ZBoost | XGBoost mantığı: gradyan + hessian, `G²/(H+λ)` kazancı, erken durdurma |
-
-ZBoost'ta `learning_rate`, `max_depth`, `reg_lambda`, `gamma`, `subsample`, `colsample` ve `early_stopping_rounds` ayarlanabiliyor.
-
-## ⚙️ Ön İşleme
-
-`AutoPreprocessor` sayısal ve kategorik kolonları kendisi buluyor:
-
-- **Eksik veri:** mean, median, most_frequent, constant, KNN
-- **Aykırı değer:** IQR ya da z-skoru ile kırpma
-- **Encoding:** one-hot ya da ordinal
-- **Scaling:** standard, minmax, robust
-
-Yazı olarak gelen etiketleri (`"evet"`, `"hayir"` gibi) de alıyor, tahminleri yine yazı olarak döndürüyor.
-
-## 📏 Metrikler
-
-`accuracy`, `f1_macro`, `precision_macro`, `recall_macro`, `roc_auc`, `log_loss`, `r2`, `mse`, `rmse`, `mae`. Küçük olanın iyi olduğu metriklerde (rmse gibi) sıralamayı kendisi ters çeviriyor.
-
-## 🛠️ Ayarlar
-
-```python
-automl = AutoML(
-    task="auto",                         # "classification" / "regression"
-    models=["zboost", "random_forest"],  # sadece bunları dene
-    metric="f1_macro",
-    cv=5,
-    preprocessing={"scaling": "robust", "outliers": "zscore", "numeric_impute": "knn"},
-)
-automl.fit(X, y)
-automl.feature_importances()             # ağaç tabanlı modellerde özellik önemleri
-```
-
-Model kaydetme: `save_model(automl, "model.pkl")` ve `load_model("model.pkl")`.
-
-## 📁 Klasör Yapısı
+## 🗂️ Proje Yapısı
 
 ```
-zaneduscv/
-├── core.py                 # AutoML sınıfı
-├── base.py                 # ortak taban sınıflar (get_params, clone ...)
-├── metrics.py              # metrikler
-├── model_selection.py      # KFold, StratifiedKFold, train_test_split, cross_val_score
-├── pipeline.py             # Pipeline
-├── datasets.py             # deneme için sentetik veri
-├── preprocessing/          # eksik veri, aykırı değer, encoding, scaling
-├── models/                 # linear, neighbors, svm, tree, forest, boosting
-├── feature_engineering/    # v0.2
-├── optimization/           # v0.3
-├── ensemble/               # v0.4
-├── reporting/              # leaderboard, ileride HTML/PDF rapor
-└── deployment/             # pickle ile kaydetme, ileride FastAPI + Docker
-tests/                      # pytest testleri
-examples/                   # örnek kullanım
+zaneduscv/              # ⭐ ASIL PROJE: ZANEDUSCV algoritması
+├── _data.py            # veriyi histogram kutularına ve standart değerlere çeviriyor
+├── _tree.py            # ZANEDUSCV ağacı: eğik bölme, lineer yaprak, güven katsayısı
+├── _booster.py         # boosting döngüsü ve kayıp fonksiyonları
+├── model.py            # ZANEDUSCVClassifier / ZANEDUSCVRegressor
+├── base.py             # fit / predict / get_params altyapısı
+├── metrics.py          # doğruluk, F1, log loss, R², RMSE ...
+├── model_selection.py  # train_test_split, KFold, cross_val_score
+└── datasets.py         # deneme verisi üreticileri
+benchmarks/             # XGBoost, LightGBM, CatBoost ile karşılaştırma
+examples/               # örnek kullanım
+tests/                  # pytest testleri
+zanedus_kutuphanesi/    # 🧰 yan parça: ZANEDUS AutoML kütüphanesi (eski modeller)
 ```
 
 ## 🗺️ Yol Haritası
 
-- [x] **v0.1** Sıfırdan çekirdek: ön işleme, 7 model, metrikler, CV, leaderboard, kaydetme
-- [ ] **v0.2** Feature engineering
-- [ ] **v0.3** Hiperparametre optimizasyonu (Grid Search, Random Search, Bayesian/TPE)
-- [ ] **v0.4** Ensemble (Voting, Bagging, Stacking, Blending)
-- [ ] **v0.5** Tam AutoML: SHAP tarzı açıklamalar, HTML/PDF rapor, histogram tabanlı hızlı boosting
-- [ ] **v0.6** FastAPI ve Docker ile dağıtım
-- [ ] **v1.0** GPU ve derin öğrenme desteği
+- [x] Eğik bölmeler, lineer yapraklar, güven katsayısı
+- [x] Kategorik ve eksik değer desteği, erken durdurma
+- [ ] Kendi kendini ayarlayan mod (otomatik hiperparametre)
+- [ ] Hız: kritik döngüleri derlenmiş koda taşımak
 
 ## 🧪 Testler
 
 ```bash
+pip install pytest
 pytest
 ```

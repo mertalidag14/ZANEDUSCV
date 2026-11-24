@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zaneduscv import AutoML, load_model, save_model, train_test_split
-from zaneduscv.datasets import make_classification, make_regression
-from zaneduscv.utils import detect_task
+from zanedus import AutoML, load_model, save_model, train_test_split
+from zanedus.datasets import make_classification, make_regression
+from zanedus.utils import detect_task
 
 FAST = ["logreg", "knn", "decision_tree", "zboost"]
 

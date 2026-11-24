@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from zaneduscv.preprocessing import (AutoPreprocessor, KNNImputer, LabelEncoder, MinMaxScaler,
+from zanedus.preprocessing import (AutoPreprocessor, KNNImputer, LabelEncoder, MinMaxScaler,
                                      OneHotEncoder, OutlierClipper, SimpleImputer, StandardScaler)
 
 
