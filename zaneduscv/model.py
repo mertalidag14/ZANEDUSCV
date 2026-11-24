@@ -10,12 +10,26 @@ from ._data import DataProcessor
 from .base import BaseEstimator, ClassifierMixin, RegressorMixin, sigmoid, softmax
 
 
+# Otomatik ayar modunun denedigi adaylar (varsayilana gore degisen ayarlar).
+# Telefon, meme kanseri, sarap, diyabet ve capraz sinir verilerindeki denemelerden secildi.
+TUNE_CANDIDATES = [
+    {},
+    {"colsample": 0.6},
+    {"subsample": 0.7, "colsample": 0.6},
+    {"min_samples_leaf": 10},
+    {"max_depth": 3},
+    {"max_depth": 6, "min_samples_leaf": 10},
+    {"linear_leaves": False},
+    {"confidence_kappa": 30.0, "reg_lambda": 3.0},
+]
+
+
 class _ZANEDUSCVBase(BaseEstimator):
     def __init__(self, n_estimators=500, learning_rate=0.05, max_depth=5, min_samples_leaf=5,
                  min_child_weight=1e-3, reg_lambda=1.0, gamma=0.0, subsample=0.8, colsample=0.8,
                  max_bins=64, oblique=True, oblique_top=3, linear_leaves=True, linear_lambda=1.0,
                  min_samples_linear=30, confidence_kappa=10.0, early_stopping_rounds=50,
-                 validation_fraction=0.1, random_state=None, verbose=0):
+                 validation_fraction=0.1, auto_tune=False, random_state=None, verbose=0):
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
         self.max_depth = max_depth
@@ -34,6 +48,7 @@ class _ZANEDUSCVBase(BaseEstimator):
         self.confidence_kappa = confidence_kappa
         self.early_stopping_rounds = early_stopping_rounds
         self.validation_fraction = validation_fraction
+        self.auto_tune = auto_tune
         self.random_state = random_state
         self.verbose = verbose
 
@@ -59,12 +74,43 @@ class _ZANEDUSCVBase(BaseEstimator):
         mask[val] = True
         return np.where(~mask)[0], val
 
+    def _tune(self, X, y, cat_features):
+        """Ardisik yarilama: once tum adaylar 1 katta denenir, en iyi 3'u 3 katin hepsinde.
+
+        Siniflandirmada dogruluk, regresyonda R2 ile karsilastiriyor.
+        """
+        from .model_selection import KFold, StratifiedKFold
+
+        base = {k: v for k, v in self.get_params().items() if k not in ("auto_tune", "verbose")}
+        splitter = (StratifiedKFold if self.task == "classification" else KFold)(
+            3, shuffle=True, random_state=self.random_state)
+        folds = list(splitter.split(X, y))
+        y = np.asarray(y)
+
+        def score(cand, fold):
+            tr, va = folds[fold]
+            m = type(self)(**{**base, **cand}).fit(X.iloc[tr], y[tr], cat_features=cat_features)
+            return m.score(X.iloc[va], y[va])
+
+        results = {i: [score(c, 0)] for i, c in enumerate(TUNE_CANDIDATES)}
+        top = sorted(results, key=lambda i: -results[i][0])[:3]
+        for i in top:
+            results[i] += [score(TUNE_CANDIDATES[i], f) for f in (1, 2)]
+        best = max(top, key=lambda i: np.mean(results[i]))
+        self.tune_results_ = [{"ayarlar": TUNE_CANDIDATES[i], "skor": float(np.mean(results[i])),
+                               "kat_sayisi": len(results[i])} for i in results]
+        if self.verbose:
+            for r in sorted(self.tune_results_, key=lambda r: -r["skor"]):
+                print(f"[auto_tune] {r['skor']:.4f} ({r['kat_sayisi']} kat) {r['ayarlar']}")
+        return dict(TUNE_CANDIDATES[best])
+
     def fit(self, X, y, cat_features=None, eval_set=None):
         rng = np.random.default_rng(self.random_state)
         X = self._frame(X)
-        y_enc = self._encode_y(np.asarray(y).ravel())
-        if len(X) != len(y_enc):
+        if len(X) != len(np.asarray(y).ravel()):
             raise ValueError("X ve y ayni sayida satir icermeli")
+        self.best_params_ = self._tune(X, np.asarray(y).ravel(), cat_features) if self.auto_tune else {}
+        y_enc = self._encode_y(np.asarray(y).ravel())
         self.processor_ = DataProcessor(max_bins=self.max_bins, cat_features=cat_features)
 
         if eval_set is not None:
@@ -87,6 +133,7 @@ class _ZANEDUSCVBase(BaseEstimator):
         self.n_features_in_ = len(self.feature_names_in_)
 
         params = {k: getattr(self, k) for k in self._param_names()}
+        params.update(self.best_params_)
         if Xv is None:
             params["early_stopping_rounds"] = 0
         self.booster_ = Booster(self._make_loss(), params, rng)

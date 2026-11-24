@@ -17,7 +17,18 @@ ZANEDUSCV'yi gerçek bir projede de kullanıyorum: **TeknoTahmin**, telefonları
 - 🔗 Repo: [mertalidag14/Mobile-Price-Range](https://github.com/mertalidag14/Mobile-Price-Range)
 - 🌐 Canlı site: [teknotahmin-0iji.onrender.com](https://teknotahmin-0iji.onrender.com)
 
-TeknoTahmin'de ZANEDUSCV, XGBoost, LightGBM, CatBoost ve Random Forest ile yan yana yarışıyor. Gerçek telefon verisinde (970 telefon) çapraz doğrulama skoru %70.0; Random Forest ve CatBoost %71.1 ile biraz önde. Aradaki farkı kapatmak için kendi kendini ayarlayan bir mod üzerinde çalışıyorum.
+TeknoTahmin'deki gerçek telefon verisinde (Smartprix'ten 970 telefon, sitedeki 10 donanım özelliği, 4 fiyat segmenti) 5 katlı çapraz doğrulama sonuçları:
+
+| Model | Doğruluk |
+|---|---|
+| CatBoost | **%77.1** |
+| **ZANEDUSCV (`auto_tune=True`)** | %77.0 |
+| Random Forest | %76.7 |
+| LightGBM | %75.8 |
+| ZANEDUSCV (varsayılan ayar) | %75.7 |
+| XGBoost | %75.7 |
+
+Otomatik ayar modu açıkken ZANEDUSCV, CatBoost'la neredeyse berabere geliyor (970 telefonda yaklaşık 1 telefonluk fark). Ayar araması her katın içinde ayrı yapılıyor, yani test verisine bakarak ayar seçilmiyor.
 
 ## 🌳 ZANEDUSCV Nasıl Çalışıyor?
 
@@ -100,6 +111,14 @@ df = pd.DataFrame({"ram": [4, 8, None, 6], "marka": ["A", "B", "A", None]})
 model.fit(df, ["ucuz", "pahali", "ucuz", "orta"])
 ```
 
+Ayarlarla uğraşmak istemiyorsan otomatik ayar modunu açabilirsin. Eğitim birkaç kat uzun sürüyor ama en iyi ayarı kendisi buluyor:
+
+```python
+model = ZANEDUSCVClassifier(auto_tune=True, random_state=0).fit(X_train, y_train)
+model.best_params_     # seçilen ayarlar
+model.tune_results_    # denenen bütün ayarlar ve skorları
+```
+
 Kaydetme ve yükleme:
 
 ```python
@@ -124,6 +143,7 @@ model = ZANEDUSCVClassifier.load("model.pkl")
 | `early_stopping_rounds` | 50 | Doğrulama kaybı bu kadar tur düzelmezse duruyor |
 | `validation_fraction` | 0.1 | `eval_set` verilmezse erken durdurma için ayrılan oran |
 | `max_bins` | 64 | Sayısal kolonların histogram kutusu sayısı |
+| `auto_tune` | False | True ise farklı ayarları kendi içinde çapraz doğrulamayla deneyip en iyisini seçiyor |
 
 `fit(X, y, cat_features=None, eval_set=None)`: `cat_features` ile sayı gibi görünen ama aslında kategorik olan kolonları belirtebiliyorsun.
 
@@ -159,7 +179,8 @@ zanedus_kutuphanesi/    # 🧰 yan parça: ZANEDUS AutoML kütüphanesi (eski mo
 
 - [x] Eğik bölmeler, lineer yapraklar, güven katsayısı
 - [x] Kategorik ve eksik değer desteği, erken durdurma
-- [ ] Kendi kendini ayarlayan mod (otomatik hiperparametre)
+- [x] Kendi kendini ayarlayan mod (`auto_tune=True`)
+- [x] scikit-learn uyumu (`GridSearchCV`, `cross_val_score`)
 - [ ] Hız: kritik döngüleri derlenmiş koda taşımak
 
 ## 🧪 Testler

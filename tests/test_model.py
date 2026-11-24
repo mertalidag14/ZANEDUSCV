@@ -115,3 +115,12 @@ def test_sklearn_uyumlulugu():
     assert gs.best_params_["max_depth"] in (3, 5)
     Xr, yr = make_regression(n_samples=300, random_state=8)
     assert sk_cv(ZANEDUSCVRegressor(**HIZLI), Xr, yr, cv=3).mean() > 0.5
+
+
+def test_auto_tune():
+    X, y = make_classification(n_samples=300, random_state=9)
+    m = ZANEDUSCVClassifier(auto_tune=True, **HIZLI).fit(X, y)
+    assert isinstance(m.best_params_, dict)
+    assert len(m.tune_results_) >= 3
+    assert m.score(X, y) > 0.8
+    assert ZANEDUSCVClassifier(**HIZLI).fit(X, y).best_params_ == {}
